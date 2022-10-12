@@ -1,0 +1,65 @@
+Param 
+    (   [Parameter(Mandatory=$true)][ValidateNotNullOrEmpty()] 
+        [String] 
+        $StatHolidays="MM/dd/yyyy", 
+        [Parameter(Mandatory=$true)][ValidateNotNullOrEmpty()] 
+        [String] 
+        $AzureVMList="All", 
+        [Parameter(Mandatory=$true)][ValidateSet("Start","Stop")] 
+        [String] 
+        $Action 
+    ) 
+#Check for holiday
+$Dates = $StatHolidays.Split(",") 
+[System.Collections.ArrayList]$DatesToHandle = $Dates
+$TodaysDate = Get-date -Format "MM/dd/yyyy"
+
+foreach ($Date in $DatesToHandle){
+	if($TodaysDate -eq $Date)
+	{
+		"Today is a holiday, exiting..."
+		exit
+	}
+}	
+
+#"Please enable appropriate RBAC permissions to the system identity of this automation account. Otherwise, the runbook may fail..."
+try
+{
+    "Logging in to Azure..."
+    Connect-AzAccount -Identity
+}
+catch {
+    Write-Error -Message $_.Exception
+    throw $_.Exception
+}
+
+#Get VM Names
+if($AzureVMList -ne "All") 
+{ 
+	$AzureVMs = $AzureVMList.Split(",") 
+	[System.Collections.ArrayList]$AzureVMsToHandle = $AzureVMs 
+} 
+else 
+{ 
+	$AzureVMs = (Get-AzVM).Name 
+	[System.Collections.ArrayList]$AzureVMsToHandle = $AzureVMs 
+
+} 
+
+#Start/Stop VMs
+foreach($AzureVM in $AzureVMsToHandle) 
+{
+
+	if($Action -eq "Stop") 
+	{ 
+		$VM = Get-AzVM -Name $AzureVM
+		Stop-AzVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.Name -Force -asjob
+	} 
+	else 
+	{ 
+		$VM = Get-AzVM -Name $AzureVM
+		Start-AzVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.Name -asjob
+	} 
+}
+
+
